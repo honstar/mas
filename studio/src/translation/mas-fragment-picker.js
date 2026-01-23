@@ -9,6 +9,7 @@ class MasFragmentPicker extends LitElement {
 
     static properties = {
         itemToRemove: { type: String, state: true },
+        type: { type: String, attribute: false },
     };
 
     setItemToRemove({ detail: { path } }) {
@@ -16,6 +17,7 @@ class MasFragmentPicker extends LitElement {
     }
 
     render() {
+        console.log('type', this.type);
         return html`
             <div class="search">
                 <sp-search size="m" placeholder="Search" disabled></sp-search>
@@ -44,11 +46,8 @@ class MasFragmentPicker extends LitElement {
                 </sp-picker>
             </div>
             <div class="container">
-                <mas-select-fragments-table
-                    .type=${'fragments'}
-                    .itemToRemove=${this.itemToRemove}
-                ></mas-select-fragments-table>
-                <mas-selected-items .type=${'fragments'} @remove=${this.setItemToRemove}></mas-selected-items>
+                <mas-select-fragments-table .type=${this.type} .itemToRemove=${this.itemToRemove}></mas-select-fragments-table>
+                <mas-selected-items .type=${this.type} @remove=${this.setItemToRemove}></mas-selected-items>
             </div>
         `;
     }

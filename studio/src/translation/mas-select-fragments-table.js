@@ -7,7 +7,6 @@ import { MODEL_WEB_COMPONENT_MAPPING, getFragmentPartsToUse } from '../editor-pa
 import { ROOT_PATH, TAG_MODEL_ID_MAPPING } from '../constants.js';
 import { getService, showToast } from '../utils.js';
 import { Fragment } from '../aem/fragment.js';
-
 class MasSelectFragmentsTable extends LitElement {
     static styles = styles;
 
@@ -15,7 +14,7 @@ class MasSelectFragmentsTable extends LitElement {
         type: { type: String, reflect: true, attribute: 'data-type' }, // 'fragments' | 'collections' | 'placeholders' | 'view-only'
         loading: { type: Boolean, state: true },
         error: { type: String, state: true },
-        columnsToShow: { type: Set, state: true },
+        columnsToShow: { type: Set, attribute: false },
         selectedInTable: { type: Array, state: true },
         itemToRemove: { type: String, state: true },
     };
@@ -26,6 +25,8 @@ class MasSelectFragmentsTable extends LitElement {
         this.fragments = [];
         this.loading = false;
         this.error = null;
+
+        // default columns to show
         this.columnsToShow = new Set([
             { label: 'Offer', key: 'offer', sortable: true },
             { label: 'Fragment title', key: 'fragmentTitle' },
@@ -94,6 +95,8 @@ class MasSelectFragmentsTable extends LitElement {
     }
 
     async fetchFragments() {
+        console.log('fetchFragments', this.type);
+
         this.loading = true;
         this.error = null;
         if (this.type === 'view-only' && Store.translationProjects.fragmentsByPaths.value.size) {
@@ -122,14 +125,31 @@ class MasSelectFragmentsTable extends LitElement {
         this.abortController = new AbortController();
 
         try {
-            if (Store.translationProjects.allFragments.value.length) {
-                this.fragments = Store.translationProjects.allFragments.value;
+            let fragmentsCache, modelId, pathsCache;
+            let enrichOfferData = false;
+            switch (this.type) {
+                case 'fragments':
+                    fragmentsCache = Store.translationProjects.allFragments;
+                    pathsCache = Store.translationProjects.fragmentsByPaths;
+                    modelId = TAG_MODEL_ID_MAPPING['mas:studio/content-type/merch-card'];
+                    enrichOfferData = true;
+                    break;
+                case 'collections':
+                    fragmentsCache = Store.translationProjects.collections.allCollections;
+                    pathsCache = Store.translationProjects.collections.collectionsByPaths;
+                    modelId = TAG_MODEL_ID_MAPPING['mas:studio/content-type/merch-card-collection'];
+                    break;
+            }
+            if (fragmentsCache && fragmentsCache.value.length > 0) {
+                this.fragments = fragmentsCache.value;
+                this.loading = false;
                 return;
             }
+
             const cursor = await aem.sites.cf.fragments.search(
                 {
                     path: `${ROOT_PATH}/${surface}/${Store.filters.value?.locale || 'en_US'}`,
-                    modelIds: [TAG_MODEL_ID_MAPPING['mas:studio/content-type/merch-card']],
+                    modelIds: [modelId],
                     sort: [{ on: 'modifiedOrCreated', order: 'DESC' }],
                 },
                 null,
@@ -140,16 +160,23 @@ class MasSelectFragmentsTable extends LitElement {
             for (const item of result.value) {
                 fetchedFragments.push(new Fragment(item));
             }
-            this.fragments = await Promise.all(
-                fetchedFragments.map(async (fragment) => ({
+            if (enrichOfferData) {
+                this.fragments = await Promise.all(
+                    fetchedFragments.map(async (fragment) => ({
+                        ...fragment,
+                        offerData: await this.loadOfferData(fragment),
+                        studioPath: this.getFragmentName(fragment),
+                    })),
+                );
+            } else {
+                this.fragments = fetchedFragments.map((fragment) => ({
                     ...fragment,
-                    offerData: await this.loadOfferData(fragment),
                     studioPath: this.getFragmentName(fragment),
-                })),
-            );
+                }));
+            }
             const fragmentsByPaths = new Map(this.fragments.map((fragment) => [fragment.path, fragment]));
-            Store.translationProjects.fragmentsByPaths.set(fragmentsByPaths);
-            Store.translationProjects.allFragments.set(this.fragments);
+            fragmentsCache.set(this.fragments);
+            pathsCache.set(fragmentsByPaths);
             this.selectedInTable = this.translationProject?.getFieldValues('items');
             if (this.type === 'view-only') {
                 this.fragments = this.selectedInTable.map((path) => Store.translationProjects.fragmentsByPaths.value.get(path));
@@ -237,7 +264,54 @@ class MasSelectFragmentsTable extends LitElement {
         }
     }
 
+    renderFragmentRow(fragment) {
+        return html`<sp-table-row value=${fragment.path}>
+            <sp-table-cell>
+                ${fragment.tags?.find(({ id }) => id.startsWith('mas:product_code/'))?.title || '-'}
+            </sp-table-cell>
+            <sp-table-cell>${fragment.title}</sp-table-cell>
+            <sp-table-cell class="offer-id" title=${fragment.offerData?.offerId}>
+                <div>${fragment.offerData?.offerId}</div>
+                ${fragment.offerData?.offerId
+                    ? html`<sp-button
+                          icon-only
+                          aria-label="Copy Offer ID to clipboard"
+                          .disabled=${!fragment.offerData?.offerId}
+                          @click=${(e) => this.copyToClipboard(e, fragment.offerData?.offerId)}
+                      >
+                          <sp-icon-copy slot="icon"></sp-icon-copy>
+                          <sp-icon-checkmark slot="icon"></sp-icon-checkmark>
+                      </sp-button>`
+                    : 'no offer data'}
+            </sp-table-cell>
+            <sp-table-cell>${fragment.studioPath}</sp-table-cell>
+            ${this.renderStatus(fragment.status)}
+        </sp-table-row>`;
+    }
+
+    renderCollectionRow(collection) {
+        const cards = collection.fields?.find(({ name }) => name === 'cards')?.values || [];
+        return html`<sp-table-row value=${collection.path}>
+            <sp-table-cell>${collection.title}</sp-table-cell>
+            <sp-table-cell>${cards?.length || 0}</sp-table-cell>
+            <sp-table-cell>${collection.studioPath}</sp-table-cell>
+            ${this.renderStatus(collection.status)}
+        </sp-table-row>`;
+    }
+
+    renderTableRow(item) {
+        switch (this.type) {
+            case 'collections':
+                return this.renderCollectionRow(item);
+            case 'fragments':
+            default:
+                return this.renderFragmentRow(item);
+        }
+    }
+
     render() {
+        console.log('render', this.type);
+        console.log('Store.translationProjects.fragmentsByPaths.value', Store.translationProjects.fragmentsByPaths.value);
         return html` ${this.loading
             ? html`<div class="loading-container">${this.loadingIndicator}</div>`
             : html`<sp-table
@@ -252,29 +326,7 @@ class MasSelectFragmentsTable extends LitElement {
                       ${repeat(
                           this.fragments,
                           (fragment) => fragment.path,
-                          (fragment) =>
-                              html`<sp-table-row value=${fragment.path}>
-                                  <sp-table-cell>
-                                      ${fragment.tags?.find(({ id }) => id.startsWith('mas:product_code/'))?.title || '-'}
-                                  </sp-table-cell>
-                                  <sp-table-cell>${fragment.title}</sp-table-cell>
-                                  <sp-table-cell class="offer-id" title=${fragment.offerData?.offerId}>
-                                      <div>${fragment.offerData?.offerId}</div>
-                                      ${fragment.offerData?.offerId
-                                          ? html`<sp-button
-                                                icon-only
-                                                aria-label="Copy Offer ID to clipboard"
-                                                .disabled=${!fragment.offerData?.offerId}
-                                                @click=${(e) => this.copyToClipboard(e, fragment.offerData?.offerId)}
-                                            >
-                                                <sp-icon-copy slot="icon"></sp-icon-copy>
-                                                <sp-icon-checkmark slot="icon"></sp-icon-checkmark>
-                                            </sp-button>`
-                                          : 'no offer data'}
-                                  </sp-table-cell>
-                                  <sp-table-cell>${fragment.studioPath}</sp-table-cell>
-                                  ${this.renderStatus(fragment.status)}
-                              </sp-table-row>`,
+                          (item) => this.renderTableRow(item),
                       )}
                   </sp-table-body>
               </sp-table>`}`;

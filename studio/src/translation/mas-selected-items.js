@@ -21,11 +21,9 @@ class MasSelectedItems extends LitElement {
     get selectedItems() {
         const translationProject = this.translationProjectStoreController.value;
         if (this.type === 'fragments') {
-            return (
-                translationProject?.fields
-                    ?.find((field) => field.name === 'items')
-                    ?.values?.map((path) => Store.translationProjects.fragmentsByPaths.value.get(path)) || []
-            );
+            return translationProject
+                ?.getFieldValues('items')
+                ?.map((path) => Store.translationProjects.fragmentsByPaths.value.get(path));
         }
         return [];
     }

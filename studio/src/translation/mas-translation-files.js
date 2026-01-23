@@ -5,14 +5,18 @@ import StoreController from '../reactivity/store-controller.js';
 import NestedStoreController from '../reactivity/nested-store-controller.js';
 
 import './mas-fragment-picker.js';
+import './mas-collections-picker.js';
 
 class MasTranslationFiles extends LitElement {
     static styles = styles;
 
-    static properties = {};
+    static properties = {
+        selectedTab: { type: String, state: true },
+    };
 
     constructor() {
         super();
+        this.selectedTab = 'fragments';
         this.showSelectedStoreController = new StoreController(this, Store.translationProjects.showSelected);
         this.inEditController = new NestedStoreController(this, Store.translationProjects.inEdit);
     }
@@ -29,18 +33,26 @@ class MasTranslationFiles extends LitElement {
         Store.translationProjects.showSelected.set(!this.showSelected);
     };
 
+    #handleTabChange = (event) => {
+        this.selectedTab = event.currentTarget.selected;
+    };
+
     render() {
         return html`
-            <sp-tabs quiet selected="fragments">
+            <sp-tabs quiet selected=${this.selectedTab} @change=${this.#handleTabChange}>
                 <sp-tab value="fragments" label="Fragments">Fragments</sp-tab>
-                <sp-tab value="collections" label="Collections" disabled>Collections</sp-tab>
+                <sp-tab value="collections" label="Collections">Collections</sp-tab>
                 <sp-tab value="placeholders" label="Placeholders" disabled>Placeholders</sp-tab>
 
                 <sp-tab-panel value="fragments">
-                    <mas-fragment-picker></mas-fragment-picker>
+                    ${this.selectedTab === 'fragments'
+                        ? html`<mas-fragment-picker .type=${this.selectedTab}></mas-fragment-picker>`
+                        : ''}
                 </sp-tab-panel>
                 <sp-tab-panel value="collections">
-                    <mas-collection-picker></mas-collection-picker>
+                    ${this.selectedTab === 'collections'
+                        ? html`<mas-collections-picker .type=${this.selectedTab}></mas-collections-picker>`
+                        : ''}
                 </sp-tab-panel>
                 <sp-tab-panel value="placeholders">
                     <mas-placeholder-picker></mas-placeholder-picker>
@@ -50,10 +62,10 @@ class MasTranslationFiles extends LitElement {
                 <sp-button variant="secondary" @click=${this.#toggleShowSelected} ?disabled=${!this.selectedFilesCount}>
                     <sp-icon-export
                         slot="icon"
-                        label=${this.showSelected && this.selectedFilesCount ? 'Hide selection' : 'Selected files'}
+                        label=${this.showSelected && this.selectedFilesCount ? 'Hide selection' : 'Selected items'}
                         class=${this.showSelected && this.selectedFilesCount ? 'flipped' : ''}
                     ></sp-icon-export>
-                    ${this.showSelected && this.selectedFilesCount ? 'Hide selection' : 'Selected files'}
+                    ${this.showSelected && this.selectedFilesCount ? 'Hide selection' : 'Selected items'}
                     (${this.selectedFilesCount})
                 </sp-button>
             </div>
