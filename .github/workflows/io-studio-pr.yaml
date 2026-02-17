@@ -1,7 +1,6 @@
 name: IO Studio PR Check
 on:
-    pull_request:
-        types: [opened, synchronize, reopened]
+    push:
         paths:
             - 'io/studio/**'
 
