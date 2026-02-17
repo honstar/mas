@@ -37,7 +37,7 @@ jobs:
 
         steps:
             - name: Fetch secrets from vault
-              uses: actions/vault-action@v2.4
+              uses: hashicorp/vault-action@v2.4.0
               with:
                   url: https://vault-amer.adobe.net
                   method: approle
