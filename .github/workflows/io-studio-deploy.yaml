@@ -66,4 +66,4 @@ jobs:
                 printf '%s' "$AIO_CONTENT" > .aio
 
             - name: Deploy
-              run: aio app deploy -v
+              run: npx aio app deploy -v
