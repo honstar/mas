@@ -58,9 +58,12 @@ jobs:
               run: npm ci
 
             - name: Prepare .aio and .env files
+              env:
+                ENV_CONTENT: ${{ secrets.ENV }}
+                AIO_CONTENT: ${{ secrets.AIO }}
               run: |
-                echo ${{ secrets.ENV }} > .env
-                echo ${{ secrets.AIO }} > .aio
+                printf '%s' "$ENV_CONTENT" > .env
+                printf '%s' "$AIO_CONTENT" > .aio
 
             - name: Deploy
               run: aio app deploy -v
