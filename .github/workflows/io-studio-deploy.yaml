@@ -1,0 +1,66 @@
+name: IO Studio Deploy
+on:
+    workflow_call:
+        inputs:
+            run_tests:
+                type: boolean
+                required: false
+                default: true
+        secrets:
+            ENV:
+                required: true
+            AIO:
+                required: true
+
+jobs:
+    tests:
+        if: inputs.run_tests == true
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: io/studio
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Set up Node.js 22
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: 'npm'
+                  cache-dependency-path: io/studio/package.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run tests
+              run: npm test
+
+    deploy:
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: io/studio
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js 22
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: 'npm'
+                  cache-dependency-path: io/studio/package.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Prepare .aio and .env files
+              run: |
+                echo ${{ secrets.ENV }} > .env
+                echo ${{ secrets.AIO }} > .aio
+
+            - name: Deploy
+              run: aio app deploy -v

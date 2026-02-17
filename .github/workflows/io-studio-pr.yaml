@@ -29,24 +29,10 @@ jobs:
               run: npm test
 
     deploy:
-        runs-on: ubuntu-latest
-        defaults:
-            run:
-                working-directory: io/studio
         needs: tests
-
-        steps:
-            - name: GH github.actor
-              run: |
-                echo ${{ github.actor }}
-                exit 1
-
-            - name: Prepare .aio and .env files
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: io/studio/package.json
-
-            - name: Install dependencies
-              run: npm ci
+        uses: ./.github/workflows/io-studio-deploy.yaml
+        with:
+            run_tests: false
+        secrets:
+            ENV: ${{ secrets[format('AIO_STUDIO_ENV_{0}', github.actor)] || secrets.AIO_STUDIO_ENV_HONSTAR }}
+            AIO: ${{ secrets[format('AIO_STUDIO_AIO_{0}', github.actor)] || secrets.AIO_STUDIO_AIO_HONSTAR }}
